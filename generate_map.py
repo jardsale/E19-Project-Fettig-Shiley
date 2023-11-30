@@ -50,12 +50,12 @@ def plotGrid(coord_grid):
     plt.show()
 
 def curveFit(all_x, all_y, all_z, x_len, y_len):
-    def func(xy, a, b, c, d, e, f, g, h, i, j): 
+    def func(xy, a, b, c, d, e, f, g, h, i, j, k, l, m, n): 
         x, y = xy
         return a + b*x + c*y + d*x**2 + e*y**2 + f*x*y + g*x**3 + h*y**3 + \
-        i*x**2*y + j*y**2*x
+        i*x**2*y + j*y**2*x + n*np.e**(x*k) + m*np.e**(y*l)
 
-    popt, pcov = curve_fit(func, (all_x, all_y), all_z) 
+    popt, pcov = curve_fit(func, (all_x, all_y), all_z, maxfev = 100000) 
 
     x_range = np.linspace(0, x_len - 1, 50) 
     y_range = np.linspace(0, y_len - 1, 50) 
