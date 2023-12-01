@@ -22,8 +22,7 @@ GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
 URL = "https://maps.googleapis.com/maps/api/elevation/json?locations="
 
 def main():
-    lat = 39.7391536
-    long = -104.9847034
+    # generate a grid for swarthmore campus:
     # coord_grid = generateGrid((39.902763, -75.350705), (39.907570, -75.358029))
     coord_grid = loadGrid("swarthmore_elev_map.txt")
     plotGrid(coord_grid)
