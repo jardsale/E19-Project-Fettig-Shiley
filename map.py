@@ -76,15 +76,17 @@ class Map:
         # generate grid
         for i in range(x_iters):
             x_idx = i
+            curr_y = self.p1[1]
             if(dir_x == -1):
                 x_idx = x_iters - i - 1
             for j in range(y_iters):
+                print(curr_x, curr_y)
                 y_idx = j
                 if(dir_y == -1):
                     y_idx = y_iters - j - 1
                 coord_grid[y_idx][x_idx] = elevationPoint(curr_x, curr_y) 
-                curr_y += dxy * dir_y 
-            curr_x += dxy * dir_x
+                curr_y += (dxy * dir_y)
+            curr_x += (dxy * dir_x)
 
         # write to a new file
         file_str = ""
@@ -109,7 +111,7 @@ class Map:
             i*x**2*y + j*y**2*x + n*np.e**(x*k) + m*np.e**(y*l)
 
         def curveFit(all_x, all_y, all_z, x_len, y_len):
-            popt, pcov = curve_fit(func, (all_x, all_y), all_z, maxfev = 100000000) 
+            popt, pcov = curve_fit(func, (all_x, all_y), all_z, maxfev = 100000000, method="trf") 
 
             x_range = np.linspace(0, x_len - 1, 50) 
             y_range = np.linspace(0, y_len - 1, 50) 

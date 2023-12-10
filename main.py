@@ -13,10 +13,13 @@ def main():
     # shenandoah_mountain.plotGrid()
 
     # mt_frances = Map("generate", "frances.txt", \
-     # (63.002348, -151.194851), (62.974696, -151.148923), 15)
-    st_helens = Map("generate", "st_helens.txt", \
-    (46.216377832847634, -122.21710821264179), (46.182737487245845, -122.16574961676747), 20)
+    #  (63.002348, -151.194851), (62.974696, -151.148923), 15)
+    # st_helens = Map("generate", "st_helens_smaller.txt", \
+    # (46.182636, -122.232265), (46.235618, -122.146091), 10)
     # mt_frances = Map("load", "frances.txt")
-    st_helens.plotGrid()
-    
+    # mt_frances.plotGrid()
+    hood = Map("generate", "mt_hood.txt", \
+    (45.350626, -121.734667), (45.393944, -121.665809), 10)
+
+    hood.plotGrid()
 main()
