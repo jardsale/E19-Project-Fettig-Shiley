@@ -12,9 +12,9 @@ def main():
     # shenandoah_mountain = Map("load", "shenandoah.txt")
     # shenandoah_mountain.plotGrid()
 
-    # mt_frances = Map("generate", "frances.txt", \
-    #  (63.002348, -151.194851), (62.974696, -151.148923), 15)
-    mt_frances = Map("load", "frances.txt")
-    mt_frances.plotGrid()
+    mt_frances = Map("generate", "frances.txt", \
+     (63.002348, -151.194851), (62.974696, -151.148923), 15)
+    # mt_frances = Map("load", "swarthmore_elev_map_smaller.txt")
+    # mt_frances.plotGrid()
     
 main()
