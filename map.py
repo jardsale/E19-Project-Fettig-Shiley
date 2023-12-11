@@ -16,6 +16,7 @@ from dotenv import load_dotenv
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit 
+from scipy.interpolate import RegularGridInterpolator
 
 load_dotenv()
 
@@ -24,11 +25,12 @@ URL = "https://maps.googleapis.com/maps/api/elevation/json?locations="
 
 class Map:
 
-    def __init__(self, mode, fname, p1 = None, p2 = None, tiles = 10):
+    def __init__(self, mode, fname, p1 = None, p2 = None, tiles = 10, method="fit"):
         self.mode = mode
         self.fname = fname
         self.p1 = p1
         self.p2 = p2
+        self.method = method
 
         if(mode == "load"):
             self.coord_grid, self.tiles = self.loadGrid()
@@ -142,6 +144,18 @@ class Map:
             #######
 
             return X, Y, Z
+        
+        def interpolate(x_len, y_len, all_z):
+            x = np.linspace(0, x_len, x_len)
+            y = np.linspace(0, y_len, y_len)
+            X, Y = np.meshgrid(x, y)
+            xg = np.meshgrid(x)
+            yg = np.meshgrid(y)
+            
+            
+            print(np.array(self.coord_grid))
+            return X, Y, RegularGridInterpolator((x, y), np.array(self.coord_grid), method="cubic")
+
 
         fig = plt.figure()
         ax = plt.axes(projection='3d')
@@ -151,6 +165,7 @@ class Map:
         all_x = []
         all_y = []
         all_z = []
+        points = []
 
         for x in range(x_len):
             for y in range(y_len):
@@ -158,10 +173,20 @@ class Map:
                 all_x += [x]
                 all_y += [y]
                 all_z += [float(self.coord_grid[x][y])]
+                points += [(x, y)]
 
-        time_start = time.time()
-        X, Y, Z = curveFit(all_x, all_y, all_z, x_len, y_len)
-        time_end = time.time()
+        if self.method == "fit":
+            time_start = time.time()
+            X, Y, Z = curveFit(points, all_z)
+            time_end = time.time()
+        else:
+            time_start = time.time()
+            X, Y, Z = interpolate(x_len, y_len, all_z)
+            time_end = time.time()
+
         print("Time to curve fit: %.6f seconds" % (time_end-time_start))
-        ax.plot_surface(X, Y, Z, color='red', alpha=0.5) 
+        if self.method=="fit":
+            ax.plot_surface(X, Y, Z, color='red', alpha=0.5) 
+        else:
+            ax.plot_wireframe(X, Y, Z)
         plt.show()
