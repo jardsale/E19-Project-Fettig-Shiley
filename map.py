@@ -14,9 +14,11 @@ import os
 import time
 from dotenv import load_dotenv
 import numpy as np
+import scipy as sp
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit 
-from scipy.interpolate import RegularGridInterpolator
+import scipy.interpolate 
+
 
 load_dotenv()
 
@@ -124,53 +126,56 @@ class Map:
             a15*x**3*y**3 + a16*x**4 + a17*y**4 + a18*x*y**4 + a19*x**4*y + a20*x**2*y**4
 
         def curveFit(all_x, all_y, all_z, x_len, y_len):
+            # curve fit using function and all datapoints
             popt, pcov = curve_fit(func20, (all_x, all_y), all_z, maxfev = 100000000) 
 
-            x_range = np.linspace(0, x_len - 1, 100)  # TODO: fix the iteration length of these???
-            y_range = np.linspace(0, y_len - 1, 100)  # TODO
+            # define ranges and generate mesh grid
+            x_range = np.linspace(0, x_len - 1, 1000)
+            y_range = np.linspace(0, y_len - 1, 1000)
             X, Y = np.meshgrid(x_range, y_range)
 
+            # apply the function with parameters found from curve fit to mesh grid
             Z = func20((X, Y), *popt)
 
-            ####### getting error from functional esitmate
-            perc_err_accum = 0
+            """ Getting Absolute / Percent Error"""
+            err_accum = 0
 
             for i in range(len(all_x)):
                 z_approx = func20((all_x[i], all_y[i]), *popt)
-                perc_err_accum += abs((all_z[i] - z_approx)/z_approx)
+                err_accum += abs((all_z[i] - z_approx)/z_approx)
 
-            abs_err = perc_err_accum*100/len(all_x)
-            print("Absolute Error: %.3f%%" % abs_err)
-            #######
+            perc_err = err_accum*100/len(all_x)
+            print("Percent Error: %.3f%%" % perc_err)
+            abs_err = err_accum / len(all_x)
+            print("Absolute Error: %.2fm" % abs_err)
 
             return X, Y, Z
         
-        def interpolate(x_len, y_len, all_x, all_y, all_z):
-            def f(x, y, z):
-                return 2 * x**3 + 3 * y**2 - z
-            x = np.linspace(0, x_len - 1, 100)
-            y = np.linspace(0, y_len - 1, 100)
-            z = np.linspace(min(all_z), max(all_z), 100)
-            xg, yg, zg = np.meshgrid(x, y, z, indexing='ij', sparse=True)
-            data = f(xg, yg, zg)
-            
-            interp = RegularGridInterpolator((x, y, z), data)
+        def interpolate(all_x, all_y, all_z, x_len, y_len):
 
-            pts = []
-            for i in range(len(all_x)):
-                pts += [all_x[i], all_y[i], all_z[i]]
-            return x, y, interp(pts)
+            # define lienar spaces to operate over
+            x_lin = np.linspace(0, x_len - 1, 1000)
+            y_lin = np.linspace(0, y_len - 1, 1000)
 
+            # generate mesh grid and cubic spline over all data points
+            X, Y = np.meshgrid(x_lin, y_lin, indexing='xy')
+            spline = sp.interpolate.Rbf(all_x,all_y,all_z,function='cubic')
 
+            # plot spline on mesh grid
+            Z = spline(X, Y)
+
+            return X, Y, Z
+
+        # define plot and axes
         fig = plt.figure()
         ax = plt.axes(projection='3d')
-        
+
+        # preprocessing 
         x_len = len(self.coord_grid)
         y_len = len(self.coord_grid[0])
         all_x = []
         all_y = []
         all_z = []
-        points = []
 
         for x in range(x_len):
             for y in range(y_len):
@@ -178,21 +183,21 @@ class Map:
                 all_x += [x]
                 all_y += [y]
                 all_z += [float(self.coord_grid[x][y])]
-                points += [(x, y)]
 
+        # fit or interpolate depending on chosen method 
         time_start = time.time()
         if self.method == "fit":
             X, Y, Z = curveFit(all_x, all_y, all_z, x_len, y_len)
         else:
-            X, Y, Z = interpolate(x_len, y_len, all_x, all_y, all_z)
+            X, Y, Z = interpolate(all_x, all_y, all_z, x_len, y_len)
         time_end = time.time()
 
-        print("Time to curve fit: %.6f seconds" % (time_end-time_start))
-        print(Z)
+        # post-processing and plot
+        print("Processing Time: %.6f seconds" % (time_end-time_start))
         if(self.method == "fit"):
             ax.plot_surface(X, Y, Z, color='red', alpha=0.5) 
         else:
-            ax.plot_wireframe(X, Y, [Z], rstride=3, cstride=3,
-                  alpha=0.4, color='m', label='linear interp')
+            # ax.plot_wireframe(X, Y, Z)
+            ax.plot_surface(X, Y, Z, alpha=0.8)
         
         plt.show()
