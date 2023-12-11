@@ -145,16 +145,21 @@ class Map:
 
             return X, Y, Z
         
-        def interpolate(x_len, y_len, all_z):
-            x = np.linspace(0, x_len, x_len)
-            y = np.linspace(0, y_len, y_len)
-            X, Y = np.meshgrid(x, y)
-            xg = np.meshgrid(x)
-            yg = np.meshgrid(y)
+        def interpolate(x_len, y_len, all_x, all_y, all_z):
+            def f(x, y, z):
+                return 2 * x**3 + 3 * y**2 - z
+            x = np.linspace(0, x_len - 1, 100)
+            y = np.linspace(0, y_len - 1, 100)
+            z = np.linspace(min(all_z), max(all_z), 100)
+            xg, yg, zg = np.meshgrid(x, y, z, indexing='ij', sparse=True)
+            data = f(xg, yg, zg)
             
-            
-            print(np.array(self.coord_grid))
-            return X, Y, RegularGridInterpolator((x, y), np.array(self.coord_grid), method="cubic")
+            interp = RegularGridInterpolator((x, y, z), data)
+
+            pts = []
+            for i in range(len(all_x)):
+                pts += [all_x[i], all_y[i], all_z[i]]
+            return x, y, interp(pts)
 
 
         fig = plt.figure()
@@ -175,18 +180,19 @@ class Map:
                 all_z += [float(self.coord_grid[x][y])]
                 points += [(x, y)]
 
+        time_start = time.time()
         if self.method == "fit":
-            time_start = time.time()
-            X, Y, Z = curveFit(points, all_z)
-            time_end = time.time()
+            X, Y, Z = curveFit(all_x, all_y, all_z, x_len, y_len)
         else:
-            time_start = time.time()
-            X, Y, Z = interpolate(x_len, y_len, all_z)
-            time_end = time.time()
+            X, Y, Z = interpolate(x_len, y_len, all_x, all_y, all_z)
+        time_end = time.time()
 
         print("Time to curve fit: %.6f seconds" % (time_end-time_start))
-        if self.method=="fit":
+        print(Z)
+        if(self.method == "fit"):
             ax.plot_surface(X, Y, Z, color='red', alpha=0.5) 
         else:
-            ax.plot_wireframe(X, Y, Z)
+            ax.plot_wireframe(X, Y, [Z], rstride=3, cstride=3,
+                  alpha=0.4, color='m', label='linear interp')
+        
         plt.show()
