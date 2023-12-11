@@ -28,7 +28,7 @@ URL = "https://maps.googleapis.com/maps/api/elevation/json?locations="
 
 class Map:
 
-    def __init__(self, mode, fname, p1 = None, p2 = None, start = None, end = None, tiles = 10, method="fit", path=False):
+    def __init__(self, mode, fname, p1 = None, p2 = None, start = (0,0), end = (12, 6,5), tiles = 10, method="fit", path=False):
         self.mode = mode
         self.fname = fname
         self.p1 = p1
@@ -131,9 +131,10 @@ class Map:
             + a9*x**2*y**2 + a10*x**3 + a11*y**3 + a12*x*y**3 + a13*x**3*y + a14*x**2*y**3 + a15*x**3*y**2 + \
             a15*x**3*y**3 + a16*x**4 + a17*y**4 + a18*x*y**4 + a19*x**4*y + a20*x**2*y**4
 
+        
         def curveFit(all_x, all_y, all_z, x_len, y_len):
             # curve fit using function and all datapoints
-            popt, pcov = curve_fit(func20, (all_x, all_y), all_z, maxfev = 100000000)
+            popt, pcov = curve_fit(func20, (all_x, all_y), all_z, maxfev = 1000000000)
             self.coeffs = popt
 
             # define ranges and generate mesh grid
@@ -158,6 +159,7 @@ class Map:
 
             return X, Y, Z
         
+                
         def interp(all_x, all_y, all_z, x_len, y_len):
 
             # define lienar spaces to operate over
@@ -167,7 +169,7 @@ class Map:
             # generate mesh grid and cubic spline over all data points
             X, Y = np.meshgrid(x_lin, y_lin, indexing='xy')
             spline = sp.interpolate.Rbf(all_x,all_y,all_z,function='cubic')
-            self.f = spline
+            function = spline
 
             # plot spline on mesh grid
             Z = spline(X, Y)
@@ -183,11 +185,11 @@ class Map:
             ystart = self.start[1]
             xend = self.end[0]
             yend = self.end[1]
-            cost = abs((self.f(x1, y1)-self.f(xstart, ystart))/dist(xstart,ystart,x1,y1))
-            cost += abs((self.f(x2, y2)-self.f(x1, y1))/dist(x1,y1,x2,y2))
-            cost += abs((self.f(x3, y3)-self.f(x2, y2))/dist(x2,y2,x3,y3))
-            cost += abs((self.f(x4, y4)-self.f(x3, y3))/dist(x3,y3,x4,y4))
-            cost += abs((self.f(xend, yend)-self.f(x4, y4))/dist(x4,y4,xend,yend))
+            cost = abs((function(x1, y1)-function(xstart, ystart))/dist(xstart,ystart,x1,y1))
+            cost += abs((function(x2, y2)-function(x1, y1))/dist(x1,y1,x2,y2))
+            cost += abs((function(x3, y3)-function(x2, y2))/dist(x2,y2,x3,y3))
+            cost += abs((function(x4, y4)-function(x3, y3))/dist(x3,y3,x4,y4))
+            cost += abs((function(xend, yend)-function(x4, y4))/dist(x4,y4,xend,yend))
             return cost
         
         def length_constraint(x1, y1, x2, y2, x3, y3, x4, y4):
@@ -201,10 +203,12 @@ class Map:
             cost += dist(x2, y2, x3, y3)
             cost += dist(x3, y3, x4, y4)
             cost += dist(x4, y4, xend, yend)
+            return cost
 
-        def path_cost(x1, y1, x2, y2, x3, y3, x4, y4):
+        def path_cost(coords):
+            x1, y1, x2, y2, x3, y3, x4, y4 = coords
             lambda1 = 1
-            lambda2 = 1
+            lambda2 = 100
 
             cost = lambda1 * steepness_constraint(x1, y1, x2, y2, x3, y3, x4, y4)**2
             cost += lambda2 * length_constraint(x1, y1, x2, y2, x3, y3, x4, y4)**2
@@ -213,6 +217,14 @@ class Map:
         # define plot and axes
         fig = plt.figure()
         ax = plt.axes(projection='3d')
+        
+        def function(x, y):
+            if len(self.coeffs>0):
+                return func20((x, y), *self.coeffs)
+        
+            else:
+                return self.f(x, y)
+            
 
         # preprocessing 
         x_len = len(self.coord_grid)
@@ -241,7 +253,12 @@ class Map:
 
 
         if self.path==True:
-            minimize()
+            x0 = []
+            for i in range(1,5):
+                x0 += [self.start[0]+(self.end[0]-self.start[0])/5*i, self.start[1]+(self.end[1]-self.start[1])/5*i]
+            path_pts = minimize(path_cost, x0=[1, 1, 2, 2, 3, 3, 3.5, 3.5], bounds=[(0, x_len-1), (0, y_len-1)]*4, options={"maxiter":100000}).x
+            print(path_pts)
+                
         # post-processing and plot
         print("Processing Time: %.6f seconds" % (time_end-time_start))
         if(self.method == "fit"):
@@ -250,5 +267,9 @@ class Map:
             # ax.plot_wireframe(X, Y, Z)
             ax.plot_surface(X, Y, Z, alpha=0.8)
         
-        print(self.function(10, 10))
+        x = [self.start[0], path_pts[0], path_pts[2], path_pts[4], path_pts[6], self.end[0]]
+        y = [self.start[1], path_pts[1], path_pts[3], path_pts[5], path_pts[7], self.end[1]]
+        ax.plot(x,y,[function(x[i], y[i]) for i in range(6)])
+        
+        print(function(10, 10))
         plt.show()
