@@ -11,6 +11,7 @@ pip install requests
 
 import requests 
 import os
+import time
 from dotenv import load_dotenv
 import numpy as np
 import matplotlib.pyplot as plt
@@ -121,14 +122,14 @@ class Map:
             a15*x**3*y**3 + a16*x**4 + a17*y**4 + a18*x*y**4 + a19*x**4*y + a20*x**2*y**4
 
         def curveFit(all_x, all_y, all_z, x_len, y_len):
-            popt, pcov = curve_fit(func20, (all_x, all_y), all_z, maxfev = 100000000, method="trf") 
+            popt, pcov = curve_fit(func20, (all_x, all_y), all_z, maxfev = 100000000) 
 
             x_range = np.linspace(0, x_len - 1, 100)  # TODO: fix the iteration length of these???
             y_range = np.linspace(0, y_len - 1, 100)  # TODO
             X, Y = np.meshgrid(x_range, y_range)
 
             Z = func20((X, Y), *popt)
-            
+
             ####### getting error from functional esitmate
             perc_err_accum = 0
 
@@ -137,7 +138,7 @@ class Map:
                 perc_err_accum += abs((all_z[i] - z_approx)/z_approx)
 
             abs_err = perc_err_accum*100/len(all_x)
-            print("%.3f%% Error" % abs_err)
+            print("Absolute Error: %.3f%%" % abs_err)
             #######
 
             return X, Y, Z
@@ -158,6 +159,9 @@ class Map:
                 all_y += [y]
                 all_z += [float(self.coord_grid[x][y])]
 
+        time_start = time.time()
         X, Y, Z = curveFit(all_x, all_y, all_z, x_len, y_len)
+        time_end = time.time()
+        print("Time to curve fit: %.6f seconds" % (time_end-time_start))
         ax.plot_surface(X, Y, Z, color='red', alpha=0.5) 
         plt.show()
