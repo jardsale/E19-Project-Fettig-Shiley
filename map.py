@@ -123,11 +123,23 @@ class Map:
         def curveFit(all_x, all_y, all_z, x_len, y_len):
             popt, pcov = curve_fit(func20, (all_x, all_y), all_z, maxfev = 100000000, method="trf") 
 
-            x_range = np.linspace(0, x_len - 1, 50) 
-            y_range = np.linspace(0, y_len - 1, 50) 
-            X, Y = np.meshgrid(x_range, y_range) 
+            x_range = np.linspace(0, x_len - 1, 100)  # TODO: fix the iteration length of these???
+            y_range = np.linspace(0, y_len - 1, 100)  # TODO
+            X, Y = np.meshgrid(x_range, y_range)
 
             Z = func20((X, Y), *popt)
+            
+            ####### getting error from functional esitmate
+            perc_err_accum = 0
+
+            for i in range(len(all_x)):
+                z_approx = func20((all_x[i], all_y[i]), *popt)
+                perc_err_accum += abs((all_z[i] - z_approx)/z_approx)
+
+            abs_err = perc_err_accum*100/len(all_x)
+            print("%.3f%% Error" % abs_err)
+            #######
+
             return X, Y, Z
 
         fig = plt.figure()
