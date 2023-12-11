@@ -20,7 +20,7 @@ def main():
     # mt_frances = Map("load", "frances.txt")
     # mt_frances.plotGrid()
     # hood = Map("generate", "mt_hood.txt", \
-    #(45.350626, -121.734667), (45.393944, -121.665809), 10)
-    frances = Map("load", "frances.txt", method="interp")
-    frances.plotGrid()
+    # (45.350626, -121.734667), (45.393944, -121.665809), 20)
+    hood = Map("load", "mt_hood.txt", method="fit")
+    hood.plotGrid()
 main()

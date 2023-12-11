@@ -18,6 +18,7 @@ import scipy as sp
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit 
 import scipy.interpolate 
+from scipy.optimize import minimize
 
 
 load_dotenv()
@@ -27,12 +28,17 @@ URL = "https://maps.googleapis.com/maps/api/elevation/json?locations="
 
 class Map:
 
-    def __init__(self, mode, fname, p1 = None, p2 = None, tiles = 10, method="fit"):
+    def __init__(self, mode, fname, p1 = None, p2 = None, start = None, end = None, tiles = 10, method="fit", path=False):
         self.mode = mode
         self.fname = fname
         self.p1 = p1
         self.p2 = p2
+        self.start = start
+        self.end = end
         self.method = method
+        self.f = None
+        self.path = path
+        self.coeffs = []
 
         if(mode == "load"):
             self.coord_grid, self.tiles = self.loadGrid()
@@ -127,7 +133,8 @@ class Map:
 
         def curveFit(all_x, all_y, all_z, x_len, y_len):
             # curve fit using function and all datapoints
-            popt, pcov = curve_fit(func20, (all_x, all_y), all_z, maxfev = 100000000) 
+            popt, pcov = curve_fit(func20, (all_x, all_y), all_z, maxfev = 100000000)
+            self.coeffs = popt
 
             # define ranges and generate mesh grid
             x_range = np.linspace(0, x_len - 1, 1000)
@@ -151,7 +158,7 @@ class Map:
 
             return X, Y, Z
         
-        def interpolate(all_x, all_y, all_z, x_len, y_len):
+        def interp(all_x, all_y, all_z, x_len, y_len):
 
             # define lienar spaces to operate over
             x_lin = np.linspace(0, x_len - 1, 1000)
@@ -160,11 +167,48 @@ class Map:
             # generate mesh grid and cubic spline over all data points
             X, Y = np.meshgrid(x_lin, y_lin, indexing='xy')
             spline = sp.interpolate.Rbf(all_x,all_y,all_z,function='cubic')
+            self.f = spline
 
             # plot spline on mesh grid
             Z = spline(X, Y)
 
             return X, Y, Z
+        
+
+        def dist(x1, y1, x2, y2):
+            return np.sqrt((x1-x2)**2+(y1-y2)**2)
+
+        def steepness_constraint(x1, y1, x2, y2, x3, y3, x4, y4):
+            xstart = self.start[0]
+            ystart = self.start[1]
+            xend = self.end[0]
+            yend = self.end[1]
+            cost = abs((self.f(x1, y1)-self.f(xstart, ystart))/dist(xstart,ystart,x1,y1))
+            cost += abs((self.f(x2, y2)-self.f(x1, y1))/dist(x1,y1,x2,y2))
+            cost += abs((self.f(x3, y3)-self.f(x2, y2))/dist(x2,y2,x3,y3))
+            cost += abs((self.f(x4, y4)-self.f(x3, y3))/dist(x3,y3,x4,y4))
+            cost += abs((self.f(xend, yend)-self.f(x4, y4))/dist(x4,y4,xend,yend))
+            return cost
+        
+        def length_constraint(x1, y1, x2, y2, x3, y3, x4, y4):
+            xstart = self.start[0]
+            ystart = self.start[1]
+            xend = self.end[0]
+            yend = self.end[1]
+
+            cost = dist(xstart, ystart, x1, y1)
+            cost += dist(x1, y1, x2, y2)
+            cost += dist(x2, y2, x3, y3)
+            cost += dist(x3, y3, x4, y4)
+            cost += dist(x4, y4, xend, yend)
+
+        def path_cost(x1, y1, x2, y2, x3, y3, x4, y4):
+            lambda1 = 1
+            lambda2 = 1
+
+            cost = lambda1 * steepness_constraint(x1, y1, x2, y2, x3, y3, x4, y4)**2
+            cost += lambda2 * length_constraint(x1, y1, x2, y2, x3, y3, x4, y4)**2
+            return cost
 
         # define plot and axes
         fig = plt.figure()
@@ -188,10 +232,16 @@ class Map:
         time_start = time.time()
         if self.method == "fit":
             X, Y, Z = curveFit(all_x, all_y, all_z, x_len, y_len)
+
+
         else:
-            X, Y, Z = interpolate(all_x, all_y, all_z, x_len, y_len)
+            X, Y, Z = interp(all_x, all_y, all_z, x_len, y_len)
+
         time_end = time.time()
 
+
+        if self.path==True:
+            minimize()
         # post-processing and plot
         print("Processing Time: %.6f seconds" % (time_end-time_start))
         if(self.method == "fit"):
@@ -200,4 +250,5 @@ class Map:
             # ax.plot_wireframe(X, Y, Z)
             ax.plot_surface(X, Y, Z, alpha=0.8)
         
+        print(self.function(10, 10))
         plt.show()
