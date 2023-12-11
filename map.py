@@ -80,7 +80,7 @@ class Map:
             if(dir_x == -1):
                 x_idx = x_iters - i - 1
             for j in range(y_iters):
-                print(curr_x, curr_y)
+                # print(curr_x, curr_y)
                 y_idx = j
                 if(dir_y == -1):
                     y_idx = y_iters - j - 1
@@ -105,19 +105,29 @@ class Map:
 
     def plotGrid(self):
 
-        def func(xy, a, b, c, d, e, f, g, h, i, j, k, l, m, n): 
+        def func2(xy, a, b):
             x, y = xy
-            return a + b*x + c*y + d*x**2 + e*y**2 + f*x*y + g*x**3 + h*y**3 + \
-            i*x**2*y + j*y**2*x + n*np.e**(x*k) + m*np.e**(y*l)
+            return a*x + b*y
+        
+        def func10(xy, a, b, c, d, e, f, g, h, i, j, ): 
+            x, y = xy
+            return a + b*x + c*y + d*x*y + e*x**2 + f*y**2 + g*x*y**2 + h*x**2*y + \
+            i*x**3 + j*y**3
+        
+        def func20(xy, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20):
+            x, y = xy
+            return a1 + a2*x + a3*y + a4*x*y + a5*x**2 + a6*y**2 + a7*x*y**2 + a8*x**2*y + \
+            + a9*x**2*y**2 + a10*x**3 + a11*y**3 + a12*x*y**3 + a13*x**3*y + a14*x**2*y**3 + a15*x**3*y**2 + \
+            a15*x**3*y**3 + a16*x**4 + a17*y**4 + a18*x*y**4 + a19*x**4*y + a20*x**2*y**4
 
         def curveFit(all_x, all_y, all_z, x_len, y_len):
-            popt, pcov = curve_fit(func, (all_x, all_y), all_z, maxfev = 100000000, method="trf") 
+            popt, pcov = curve_fit(func20, (all_x, all_y), all_z, maxfev = 100000000, method="trf") 
 
             x_range = np.linspace(0, x_len - 1, 50) 
             y_range = np.linspace(0, y_len - 1, 50) 
             X, Y = np.meshgrid(x_range, y_range) 
 
-            Z = func((X, Y), *popt)
+            Z = func20((X, Y), *popt)
             return X, Y, Z
 
         fig = plt.figure()

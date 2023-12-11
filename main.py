@@ -18,8 +18,9 @@ def main():
     # (46.182636, -122.232265), (46.235618, -122.146091), 10)
     # mt_frances = Map("load", "frances.txt")
     # mt_frances.plotGrid()
-    hood = Map("generate", "mt_hood.txt", \
-    (45.350626, -121.734667), (45.393944, -121.665809), 10)
+    # hood = Map("generate", "mt_hood.txt", \
+    #(45.350626, -121.734667), (45.393944, -121.665809), 10)
+    hood = Map("load", "mt_hood.txt", (45.350626, -121.734667), (45.393944, -121.665809), 10)
 
     hood.plotGrid()
 main()
