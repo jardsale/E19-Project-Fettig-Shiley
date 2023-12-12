@@ -1,8 +1,12 @@
 from map import Map
 
 def main():
-    # swarthmore_map = Map("load", "swarthmore_elev_map_smaller.txt")
-    # swarthmore_map.plotGrid()
+    # swarthmore_map = Map("generate", "swarthmore_elev_map.txt", \
+    # (39.902763, -75.350705), (39.907570, -75.358029), 10, method = "fit")
+    swarthmore_map = Map("load", "swarthmore_elev_map.txt", method = "fit")
+
+    swarthmore_map.plotGrid()
+
     # swarthmore_map_smallest = Map("generate", "swarthmore_elev_map_smallest.txt", \
     #  (39.902763, -75.350705), (39.907570, -75.358029), 5)
     # swarthmore_map_smallest = Map("load", "swarthmore_elev_map_smallest.txt", method = "fit")
@@ -21,6 +25,6 @@ def main():
     # mt_frances.plotGrid()
     # hood = Map("generate", "mt_hood.txt", \
     # (45.350626, -121.734667), (45.393944, -121.665809), 20)
-    hood = Map("load", "mt_hood.txt", method="curve", path=True, n_pts=10)
-    hood.plotGrid()
+    # hood = Map("load", "mt_hood.txt", method="fit")
+    # hood.plotGrid()
 main()

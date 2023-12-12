@@ -19,7 +19,6 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit 
 import scipy.interpolate 
 from scipy.optimize import minimize
-from matplotlib import cm
 
 
 load_dotenv()
@@ -29,21 +28,17 @@ URL = "https://maps.googleapis.com/maps/api/elevation/json?locations="
 
 class Map:
 
-    def __init__(self, mode, fname, p1 = None, p2 = None, tiles = 10, method="fit", path=False, start = None, end = None, n_pts = 5):
+    def __init__(self, mode, fname, p1 = None, p2 = None, start = None, end = None, tiles = 10, method="fit", path=False):
         self.mode = mode
         self.fname = fname
         self.p1 = p1
         self.p2 = p2
-
         self.start = start
-        self.end = end
         self.end = end
         self.method = method
         self.f = None
         self.path = path
         self.coeffs = []
-        self.n_pts = n_pts
-
 
         if(mode == "load"):
             self.coord_grid, self.tiles = self.loadGrid()
@@ -51,10 +46,6 @@ class Map:
         if(mode == "generate"):
             self.tiles = tiles
             self.coord_grid = self.generateGrid()
-        
-        if start==None:
-            self.start = (0,0)
-            self.end = (self.x_len/2, self.y_len/2)
     
     def loadGrid(self):
         # read file 
@@ -67,8 +58,6 @@ class Map:
             f_len+=1
             coord_grid.append([float(i) for i in line.strip("\n").split(" ")])
         f.close()
-        self.x_len = len(coord_grid)
-        self.y_len = len(coord_grid[0])
         return coord_grid, max(len(line), f_len)
 
     def generateGrid(self):
@@ -87,10 +76,6 @@ class Map:
         # setting up loop variables
         x_iters = int(np.ceil(x_diff/dxy))
         y_iters = int(np.ceil(y_diff/dxy))
-
-        self.x_len = x_iters
-        self.y_len = y_iters
-
         curr_x = self.p1[0]
         curr_y = self.p1[1]
         dir_x = int(np.sign(self.p2[0]-self.p1[0]))
@@ -106,6 +91,7 @@ class Map:
             if(dir_x == -1):
                 x_idx = x_iters - i - 1
             for j in range(y_iters):
+                # print(curr_x, curr_y)
                 y_idx = j
                 if(dir_y == -1):
                     y_idx = y_iters - j - 1
@@ -145,10 +131,9 @@ class Map:
             + a9*x**2*y**2 + a10*x**3 + a11*y**3 + a12*x*y**3 + a13*x**3*y + a14*x**2*y**3 + a15*x**3*y**2 + \
             a15*x**3*y**3 + a16*x**4 + a17*y**4 + a18*x*y**4 + a19*x**4*y + a20*x**2*y**4
 
-        #Applies a curve fit to topographic data
         def curveFit(all_x, all_y, all_z, x_len, y_len):
             # curve fit using function and all datapoints
-            popt, pcov = curve_fit(func20, (all_x, all_y), all_z, maxfev = 1000000000)
+            popt, pcov = curve_fit(func20, (all_x, all_y), all_z, maxfev = 100000000)
             self.coeffs = popt
 
             # define ranges and generate mesh grid
@@ -160,20 +145,22 @@ class Map:
             Z = func20((X, Y), *popt)
 
             """ Getting Absolute / Percent Error"""
-            err_accum = 0
+            perc_err_accum = abs_err_accum = 0
 
             for i in range(len(all_x)):
                 z_approx = func20((all_x[i], all_y[i]), *popt)
-                err_accum += abs((all_z[i] - z_approx)/z_approx)
+                if(z_approx == 0.0): 
+                    continue
+                perc_err_accum += abs((all_z[i] - z_approx)/z_approx)
+                abs_err_accum += abs(all_z[i] - z_approx)
 
-            perc_err = err_accum*100/len(all_x)
+            perc_err = perc_err_accum*100 / len(all_x)
             print("Percent Error: %.3f%%" % perc_err)
-            abs_err = err_accum / len(all_x)
+            abs_err = abs_err_accum / len(all_x)
             print("Absolute Error: %.2fm" % abs_err)
 
             return X, Y, Z
         
-        # Interpolates topographic data   
         def interp(all_x, all_y, all_z, x_len, y_len):
 
             # define lienar spaces to operate over
@@ -190,74 +177,55 @@ class Map:
 
             return X, Y, Z
         
-        # Helper function to calculate distance between two points (x1, y1) and (x2, y2)
+
         def dist(x1, y1, x2, y2):
             return np.sqrt((x1-x2)**2+(y1-y2)**2)
 
-        def steepness_constraint(x, y):
+        def steepness_constraint(x1, y1, x2, y2, x3, y3, x4, y4):
             xstart = self.start[0]
             ystart = self.start[1]
             xend = self.end[0]
             yend = self.end[1]
-            
-            cost = abs((function(x[0], y[0])-function(xstart, ystart))/dist(xstart,ystart,x[0],y[0]))
-            for i in range(0, self.n_pts-1):
-                cost += abs((function(x[i], y[i])-function(x[i+1], y[i+1]))/dist(x[i],y[i],x[i+1],y[i+1]))
-            
-            cost += abs((function(xend, yend)-function(x[-1], y[-1]))/dist(x[-1],y[-1],xend,yend))
+            cost = abs((self.f(x1, y1)-self.f(xstart, ystart))/dist(xstart,ystart,x1,y1))
+            cost += abs((self.f(x2, y2)-self.f(x1, y1))/dist(x1,y1,x2,y2))
+            cost += abs((self.f(x3, y3)-self.f(x2, y2))/dist(x2,y2,x3,y3))
+            cost += abs((self.f(x4, y4)-self.f(x3, y3))/dist(x3,y3,x4,y4))
+            cost += abs((self.f(xend, yend)-self.f(x4, y4))/dist(x4,y4,xend,yend))
             return cost
         
-        def length_constraint(x, y):
+        def length_constraint(x1, y1, x2, y2, x3, y3, x4, y4):
             xstart = self.start[0]
             ystart = self.start[1]
             xend = self.end[0]
             yend = self.end[1]
 
-            cost = dist(xstart, ystart, x[0], y[0])
-            for i in range(0,self.n_pts-1):
-                cost += dist(x[i], y[i], x[i+1], y[i+1])
-            
-            cost += dist(x[-1], y[-1], xend, yend)
+            cost = dist(xstart, ystart, x1, y1)
+            cost += dist(x1, y1, x2, y2)
+            cost += dist(x2, y2, x3, y3)
+            cost += dist(x3, y3, x4, y4)
+            cost += dist(x4, y4, xend, yend)
+
+        def path_cost(x1, y1, x2, y2, x3, y3, x4, y4):
+            lambda1 = 1
+            lambda2 = 1
+
+            cost = lambda1 * steepness_constraint(x1, y1, x2, y2, x3, y3, x4, y4)**2
+            cost += lambda2 * length_constraint(x1, y1, x2, y2, x3, y3, x4, y4)**2
             return cost
-
-        def path_cost(pts):
-            x = pts[0:self.n_pts]
-            y = pts[self.n_pts:]
-            print(x,y)
-            lambda1 = 0.1
-            lambda2 = 0.2
-
-            cost = lambda1 * steepness_constraint(x, y)**2
-            cost += lambda2 * length_constraint(x, y)**2
-            return cost
-
-        def initial_guess():
-            x0 = []
-            for i in range(1,self.n_pts+1):
-                x0 += [self.start[0]+(self.end[0]-self.start[0])/(self.n_pts+1)*i]
-            for i in range(1,self.n_pts+1):
-                x0 += [self.start[1]+(self.end[1]-self.start[1])/(self.n_pts+1)*i]
-            return np.array(x0)
-
 
         # define plot and axes
+        fig = plt.figure()
         ax = plt.axes(projection='3d')
-        
-        def function(x, y):
-            if len(self.coeffs)>0:
-                return func20((x, y), *self.coeffs)
-        
-            else:
-                return self.f(x, y)
-            
 
         # preprocessing 
+        x_len = len(self.coord_grid)
+        y_len = len(self.coord_grid[0])
         all_x = []
         all_y = []
         all_z = []
 
-        for x in range(self.x_len):
-            for y in range(self.y_len):
+        for x in range(x_len):
+            for y in range(y_len):
                 ax.scatter3D(x, y, self.coord_grid[x][y], c = 'b')
                 all_x += [x]
                 all_y += [y]
@@ -266,30 +234,21 @@ class Map:
         # fit or interpolate depending on chosen method 
         time_start = time.time()
         if self.method == "fit":
-            X, Y, Z = curveFit(all_x, all_y, all_z, self.x_len, self.y_len)
-
-
+            X, Y, Z = curveFit(all_x, all_y, all_z, x_len, y_len)
         else:
-            X, Y, Z = interp(all_x, all_y, all_z, self.x_len, self.y_len)
+            X, Y, Z = interp(all_x, all_y, all_z, x_len, y_len)
 
         time_end = time.time()
 
-        # If the user has chosen to generate a path, generate and optimize it
-        bs = [(0, self.x_len-1)]*self.n_pts + [(0, self.y_len-1)]*self.n_pts
 
         if self.path==True:
-            path_pts = minimize(path_cost, x0=initial_guess(), 
-                                bounds=bs).x
-                
+            minimize()
         # post-processing and plot
         print("Processing Time: %.6f seconds" % (time_end-time_start))
         if(self.method == "fit"):
-            ax.plot_surface(X, Y, Z, color='red', alpha=0.5, cmap=cm.coolwarm) 
+            ax.plot_surface(X, Y, Z, color='red', alpha=0.5) 
         else:
-            ax.plot_surface(X, Y, Z, alpha=0.8, cmap=cm.coolwarm)
-        
-        x = [self.start[0]] + path_pts[:self.n_pts] + [self.end[0]]
-        y = [self.start[1]] + path_pts[self.n_pts:] + [self.end[1]]
-        ax.plot(x,y,[function(x[i], y[i]) for i in range(self.n_pts)])
+            # ax.plot_wireframe(X, Y, Z)
+            ax.plot_surface(X, Y, Z, alpha=0.8)
         
         plt.show()
