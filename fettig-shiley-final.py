@@ -180,28 +180,35 @@ class Map:
             else:
                 return self.f(x, y)
 
+        # helper function to get distance between two points
         def dist(x1, y1, x2, y2):
             return np.sqrt((x1-x2)**2+(y1-y2)**2)
 
+        # path steepness constraint function
         def steepness_constraint(x1, y1, x2, y2, x3, y3, x4, y4):
             xstart = self.start[0]
             ystart = self.start[1]
             xend = self.end[0]
             yend = self.end[1]
             slopes = []
+            # Was getting some divide by zero errors, hence the maximum in the denominator. 
             slopes.append((function(x1, y1)-function(xstart, ystart))/max(dist(xstart,ystart,x1,y1), 0.001))
             slopes.append((function(x2, y2)-function(x1, y1))/(max(dist(x1,y1,x2,y2), 0.0001)))
             slopes.append((function(x3, y3)-function(x2, y2))/(max(dist(x2,y2,x3,y3), 0.001)))
             slopes.append((function(x4, y4)-function(x3, y3))/(max(dist(x3,y3,x4,y4), 0.001)))
             slopes.append((function(xend, yend)-function(x4, y4))/(max(dist(x4,y4,xend,yend), 0.001)))
+            
+            # return the maximum slope between points on the path
             return max(slopes)
         
+        # path length constraint function
         def length_constraint(x1, y1, x2, y2, x3, y3, x4, y4):
             xstart = self.start[0]
             ystart = self.start[1]
             xend = self.end[0]
             yend = self.end[1]
 
+            # sum up distances between points on path
             cost = dist(xstart, ystart, x1, y1)
             cost += dist(x1, y1, x2, y2)
             cost += dist(x2, y2, x3, y3)
@@ -210,6 +217,7 @@ class Map:
 
             return cost
 
+        # combined cost function with length and steepness constraints
         def path_cost(pts):
             x1, y1, x2, y2, x3, y3, x4, y4 = pts
             lambda1 = 20
@@ -247,14 +255,19 @@ class Map:
 
         time_end = time.time()
 
+        # if the user has opted to create a path...
         if self.path==True:
             init_guess = []
             for i in range(1,5):
                 init_guess += [self.start[0]+(self.end[0]-self.start[0])/5*i, self.start[1]+(self.end[1]-self.start[1])/5*i]
         
+            # optimizing the path coordinates (we currently have a fixed number of 6 points)
             path_pts = minimize(path_cost, x0=[1, 1, 2, 2, 3, 3, 3.5, 3.5], bounds=[(0, x_len-1), (0, y_len-1)]*4).x
+            
             x = [self.start[0], path_pts[0], path_pts[2], path_pts[4], path_pts[6], self.end[0]]
             y = [self.start[1], path_pts[1], path_pts[3], path_pts[5], path_pts[7], self.end[1]]
+            
+            # plotting path
             ax.plot(x,y,[function(x[i], y[i]) for i in range(6)])
 
         # post-processing and plot
