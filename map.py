@@ -19,6 +19,7 @@ import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit 
 import scipy.interpolate 
 from scipy.optimize import minimize
+from matplotlib import cm
 
 
 load_dotenv()
@@ -28,17 +29,25 @@ URL = "https://maps.googleapis.com/maps/api/elevation/json?locations="
 
 class Map:
 
-    def __init__(self, mode, fname, p1 = None, p2 = None, start = (0,0), end = (12, 6,5), tiles = 10, method="fit", path=False):
+    def __init__(self, mode, fname, p1 = None, p2 = None, tiles = 10, method="fit", path=False, start = None, end = None, n_pts = 5):
         self.mode = mode
         self.fname = fname
         self.p1 = p1
         self.p2 = p2
-        self.start = start
+
+        if start==None:
+            self.start = p1
+            self.end = (p1[0]+p2[0]/2, p1[1]+p2[1]/2)
+        else:
+            self.start = start
+            self.end = end
         self.end = end
         self.method = method
         self.f = None
         self.path = path
         self.coeffs = []
+        self.n_pts = n_pts
+
 
         if(mode == "load"):
             self.coord_grid, self.tiles = self.loadGrid()
@@ -91,7 +100,6 @@ class Map:
             if(dir_x == -1):
                 x_idx = x_iters - i - 1
             for j in range(y_iters):
-                # print(curr_x, curr_y)
                 y_idx = j
                 if(dir_y == -1):
                     y_idx = y_iters - j - 1
@@ -131,7 +139,7 @@ class Map:
             + a9*x**2*y**2 + a10*x**3 + a11*y**3 + a12*x*y**3 + a13*x**3*y + a14*x**2*y**3 + a15*x**3*y**2 + \
             a15*x**3*y**3 + a16*x**4 + a17*y**4 + a18*x*y**4 + a19*x**4*y + a20*x**2*y**4
 
-        
+        #Applies a curve fit to topographic data
         def curveFit(all_x, all_y, all_z, x_len, y_len):
             # curve fit using function and all datapoints
             popt, pcov = curve_fit(func20, (all_x, all_y), all_z, maxfev = 1000000000)
@@ -159,7 +167,7 @@ class Map:
 
             return X, Y, Z
         
-                
+        # Interpolates topographic data   
         def interp(all_x, all_y, all_z, x_len, y_len):
 
             # define lienar spaces to operate over
@@ -169,57 +177,67 @@ class Map:
             # generate mesh grid and cubic spline over all data points
             X, Y = np.meshgrid(x_lin, y_lin, indexing='xy')
             spline = sp.interpolate.Rbf(all_x,all_y,all_z,function='cubic')
-            function = spline
+            self.f = spline
 
             # plot spline on mesh grid
             Z = spline(X, Y)
 
             return X, Y, Z
         
-
+        # Helper function to calculate distance between two points (x1, y1) and (x2, y2)
         def dist(x1, y1, x2, y2):
             return np.sqrt((x1-x2)**2+(y1-y2)**2)
 
-        def steepness_constraint(x1, y1, x2, y2, x3, y3, x4, y4):
+        def steepness_constraint(x, y):
             xstart = self.start[0]
             ystart = self.start[1]
             xend = self.end[0]
             yend = self.end[1]
-            cost = abs((function(x1, y1)-function(xstart, ystart))/dist(xstart,ystart,x1,y1))
-            cost += abs((function(x2, y2)-function(x1, y1))/dist(x1,y1,x2,y2))
-            cost += abs((function(x3, y3)-function(x2, y2))/dist(x2,y2,x3,y3))
-            cost += abs((function(x4, y4)-function(x3, y3))/dist(x3,y3,x4,y4))
-            cost += abs((function(xend, yend)-function(x4, y4))/dist(x4,y4,xend,yend))
+            
+            cost = abs((function(x[0], y[0])-function(xstart, ystart))/dist(xstart,ystart,x[0],y[0]))
+            for i in range(0, self.n_pts-1):
+                cost += abs((function(x[i], y[i])-function(x[i+1], y[i+1]))/dist(x[i],y[i],x[i+1],y[i+1]))
+            
+            cost += abs((function(xend, yend)-function(x[-1], y[-1]))/dist(x[-1],y[-1],xend,yend))
             return cost
         
-        def length_constraint(x1, y1, x2, y2, x3, y3, x4, y4):
+        def length_constraint(x, y):
             xstart = self.start[0]
             ystart = self.start[1]
             xend = self.end[0]
             yend = self.end[1]
 
-            cost = dist(xstart, ystart, x1, y1)
-            cost += dist(x1, y1, x2, y2)
-            cost += dist(x2, y2, x3, y3)
-            cost += dist(x3, y3, x4, y4)
-            cost += dist(x4, y4, xend, yend)
+            cost = dist(xstart, ystart, x[0], y[0])
+            for i in range(0,self.n_pts-1):
+                cost += dist(x[i], y[i], x[i+1], y[i+1])
+            
+            cost += dist(x[-1], y[-1], xend, yend)
             return cost
 
-        def path_cost(coords):
-            x1, y1, x2, y2, x3, y3, x4, y4 = coords
+        def path_cost(pts):
+            x = pts[0:self.n_pts]
+            y = pts[self.n_pts:]
             lambda1 = 1
             lambda2 = 100
 
-            cost = lambda1 * steepness_constraint(x1, y1, x2, y2, x3, y3, x4, y4)**2
-            cost += lambda2 * length_constraint(x1, y1, x2, y2, x3, y3, x4, y4)**2
+            cost = lambda1 * steepness_constraint(x, y)**2
+            cost += lambda2 * length_constraint(x, y)**2
             return cost
 
+        def initial_guess():
+            x0 = []
+            for i in range(1,self.n_pts+1):
+                x0 += [self.start[0]+(self.end[0]-self.start[0])/(self.n_pts+1)*i]
+            for i in range(1,self.n_pts+1):
+                x0 += [self.start[1]+(self.end[1]-self.start[1])/(self.n_pts+1)*i]
+            return x0
+
+
         # define plot and axes
-        fig = plt.figure()
         ax = plt.axes(projection='3d')
         
         def function(x, y):
-            if len(self.coeffs>0):
+            if len(self.coeffs)>0:
                 return func20((x, y), *self.coeffs)
         
             else:
@@ -251,25 +269,24 @@ class Map:
 
         time_end = time.time()
 
-
+        # If the user has chosen to generate a path, generate and optimize it
+        print(initial_guess())
         if self.path==True:
-            x0 = []
-            for i in range(1,5):
-                x0 += [self.start[0]+(self.end[0]-self.start[0])/5*i, self.start[1]+(self.end[1]-self.start[1])/5*i]
-            path_pts = minimize(path_cost, x0=[1, 1, 2, 2, 3, 3, 3.5, 3.5], bounds=[(0, x_len-1), (0, y_len-1)]*4, options={"maxiter":100000}).x
-            print(path_pts)
+            path_pts = minimize(path_cost, x0=initial_guess(), 
+                                bounds=[(0, x_len-1)]*self.n_pts + [(0, y_len-1)]*self.n_pts, 
+                                options={"maxiter":100000}).x
                 
         # post-processing and plot
         print("Processing Time: %.6f seconds" % (time_end-time_start))
         if(self.method == "fit"):
-            ax.plot_surface(X, Y, Z, color='red', alpha=0.5) 
+            ax.plot_surface(X, Y, Z, color='red', alpha=0.5, cmap=cm.coolwarm) 
         else:
-            # ax.plot_wireframe(X, Y, Z)
-            ax.plot_surface(X, Y, Z, alpha=0.8)
+            ax.plot_surface(X, Y, Z, alpha=0.8, cmap=cm.coolwarm)
         
-        x = [self.start[0], path_pts[0], path_pts[2], path_pts[4], path_pts[6], self.end[0]]
-        y = [self.start[1], path_pts[1], path_pts[3], path_pts[5], path_pts[7], self.end[1]]
-        ax.plot(x,y,[function(x[i], y[i]) for i in range(6)])
+        x = [self.start[0]] + path_pts[:self.n_pts] + [self.end[0]]
+        print(x)
+        y = [self.start[1]] + path_pts[self.n_pts:] + [self.end[1]]
+        print(y)
+        ax.plot(x,y,[function(x[i], y[i]) for i in range(self.n_pts)])
         
-        print(function(10, 10))
         plt.show()
