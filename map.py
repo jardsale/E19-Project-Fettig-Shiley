@@ -35,12 +35,8 @@ class Map:
         self.p1 = p1
         self.p2 = p2
 
-        if start==None:
-            self.start = p1
-            self.end = (p1[0]+p2[0]/2, p1[1]+p2[1]/2)
-        else:
-            self.start = start
-            self.end = end
+        self.start = start
+        self.end = end
         self.end = end
         self.method = method
         self.f = None
@@ -55,6 +51,10 @@ class Map:
         if(mode == "generate"):
             self.tiles = tiles
             self.coord_grid = self.generateGrid()
+        
+        if start==None:
+            self.start = (0,0)
+            self.end = (self.x_len/2, self.y_len/2)
     
     def loadGrid(self):
         # read file 
@@ -67,6 +67,8 @@ class Map:
             f_len+=1
             coord_grid.append([float(i) for i in line.strip("\n").split(" ")])
         f.close()
+        self.x_len = len(coord_grid)
+        self.y_len = len(coord_grid[0])
         return coord_grid, max(len(line), f_len)
 
     def generateGrid(self):
@@ -85,6 +87,10 @@ class Map:
         # setting up loop variables
         x_iters = int(np.ceil(x_diff/dxy))
         y_iters = int(np.ceil(y_diff/dxy))
+
+        self.x_len = x_iters
+        self.y_len = y_iters
+
         curr_x = self.p1[0]
         curr_y = self.p1[1]
         dir_x = int(np.sign(self.p2[0]-self.p1[0]))
@@ -217,8 +223,9 @@ class Map:
         def path_cost(pts):
             x = pts[0:self.n_pts]
             y = pts[self.n_pts:]
-            lambda1 = 1
-            lambda2 = 100
+            print(x,y)
+            lambda1 = 0.1
+            lambda2 = 0.2
 
             cost = lambda1 * steepness_constraint(x, y)**2
             cost += lambda2 * length_constraint(x, y)**2
@@ -230,7 +237,7 @@ class Map:
                 x0 += [self.start[0]+(self.end[0]-self.start[0])/(self.n_pts+1)*i]
             for i in range(1,self.n_pts+1):
                 x0 += [self.start[1]+(self.end[1]-self.start[1])/(self.n_pts+1)*i]
-            return x0
+            return np.array(x0)
 
 
         # define plot and axes
@@ -245,14 +252,12 @@ class Map:
             
 
         # preprocessing 
-        x_len = len(self.coord_grid)
-        y_len = len(self.coord_grid[0])
         all_x = []
         all_y = []
         all_z = []
 
-        for x in range(x_len):
-            for y in range(y_len):
+        for x in range(self.x_len):
+            for y in range(self.y_len):
                 ax.scatter3D(x, y, self.coord_grid[x][y], c = 'b')
                 all_x += [x]
                 all_y += [y]
@@ -261,20 +266,20 @@ class Map:
         # fit or interpolate depending on chosen method 
         time_start = time.time()
         if self.method == "fit":
-            X, Y, Z = curveFit(all_x, all_y, all_z, x_len, y_len)
+            X, Y, Z = curveFit(all_x, all_y, all_z, self.x_len, self.y_len)
 
 
         else:
-            X, Y, Z = interp(all_x, all_y, all_z, x_len, y_len)
+            X, Y, Z = interp(all_x, all_y, all_z, self.x_len, self.y_len)
 
         time_end = time.time()
 
         # If the user has chosen to generate a path, generate and optimize it
-        print(initial_guess())
+        bs = [(0, self.x_len-1)]*self.n_pts + [(0, self.y_len-1)]*self.n_pts
+
         if self.path==True:
             path_pts = minimize(path_cost, x0=initial_guess(), 
-                                bounds=[(0, x_len-1)]*self.n_pts + [(0, y_len-1)]*self.n_pts, 
-                                options={"maxiter":100000}).x
+                                bounds=bs).x
                 
         # post-processing and plot
         print("Processing Time: %.6f seconds" % (time_end-time_start))
@@ -284,9 +289,7 @@ class Map:
             ax.plot_surface(X, Y, Z, alpha=0.8, cmap=cm.coolwarm)
         
         x = [self.start[0]] + path_pts[:self.n_pts] + [self.end[0]]
-        print(x)
         y = [self.start[1]] + path_pts[self.n_pts:] + [self.end[1]]
-        print(y)
         ax.plot(x,y,[function(x[i], y[i]) for i in range(self.n_pts)])
         
         plt.show()
