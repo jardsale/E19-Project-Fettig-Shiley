@@ -1,6 +1,24 @@
 from map import Map
 
 def main():
+
+    """
+    tests
+
+    The google api key is 
+
+    
+    """
+
+    swarthmore_map = Map("generate", "swarthmore_elev_map.txt", \
+    (39.902763, -75.350705), (39.907570, -75.358029), 10, method = "fit")
+    # swarthmore_map = Map("load", "swarthmore_elev_map.txt", method = "fit")
+
+
+
+
+
+
     # swarthmore_map = Map("generate", "swarthmore_elev_map.txt", \
     # (39.902763, -75.350705), (39.907570, -75.358029), 10, method = "fit")
     # swarthmore_map = Map("load", "swarthmore_elev_map.txt", method = "fit")

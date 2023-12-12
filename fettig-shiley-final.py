@@ -1,32 +1,32 @@
 """
-To call google elevation API and generate a "mountain" or other terain using
-either curve fitting or polynomial interpolation.
+Nicholas Fettig and Matthew Shiley
+Engr 019 Fall 2023 Final Project
 
-Will likely create a Map class or something similar later
+Our program collects and loads topographical data using the google maps API.
+We then approximate what the terrain around these points looks like using 
+both a curve fit method and a cubic spline interpolation method. Finally,
+we optimize a trail over the approximating function based on an objective
+function with several constraints.
 
-pip libraries:
-pip install python-dotenv
-pip install requests
+Scroll to the bottom (main function) to see tests of our Map. 
+
+Note: I'm attaching a google maps API key too. I have unlimited queries for 
+the elevation API so don't worry about any limits! 
 """
 
 import requests 
-import os
 import time
-from dotenv import load_dotenv
+import os
 import numpy as np
 import scipy as sp
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit 
 from scipy.optimize import minimize
 
-
-load_dotenv()
-
-GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+GOOGLE_API_KEY = "AIzaSyDCGxhqJ6kPjxhClSMw9bStaNVu-r1uAvg"
 URL = "https://maps.googleapis.com/maps/api/elevation/json?locations="
 
 class Map:
-
     def __init__(self, mode, fname, p1 = None, p2 = None, start = (0,0), end = (10,6), tiles = 10, method="fit", path=False):
         self.mode = mode
         self.fname = fname
@@ -60,10 +60,6 @@ class Map:
         return coord_grid, max(len(line), f_len)
 
     def generateGrid(self):
-        """
-        p1, p2: tuples of x,y coordinates to find the distance between
-        """
-
         def elevationPoint(lat, long):
             res = requests.get(f"{URL}{lat}%2C{long}&key={GOOGLE_API_KEY}")
             return res.json()['results'][0]['elevation']
@@ -115,15 +111,16 @@ class Map:
 
     def plotGrid(self):
 
-        def func2(xy, a, b):
+        """define functions of different size parameters"""
+        def func4(xy, a, b, c, d):
             x, y = xy
-            return a*x + b*y
+            return a*x*y + b*x + c*y + d
         
         def func10(xy, a, b, c, d, e, f, g, h, i, j, ): 
             x, y = xy
             return a + b*x + c*y + d*x*y + e*x**2 + f*y**2 + g*x*y**2 + h*x**2*y + \
             i*x**3 + j*y**3
-        
+
         def func20(xy, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15, a16, a17, a18, a19, a20):
             x, y = xy
             return a1 + a2*x + a3*y + a4*x*y + a5*x**2 + a6*y**2 + a7*x*y**2 + a8*x**2*y + \
@@ -142,7 +139,6 @@ class Map:
 
             # apply the function with parameters found from curve fit to mesh grid
             Z = func20((X, Y), *popt)
-
 
             """ Getting Absolute / Percent Error"""
             perc_err_accum = abs_err_accum = 0
@@ -243,13 +239,13 @@ class Map:
 
         # fit or interpolate depending on chosen method 
         time_start = time.time()
+        
         if self.method == "fit":
             X, Y, Z = curveFit(all_x, all_y, all_z, x_len, y_len)
         else:
             X, Y, Z = interp(all_x, all_y, all_z, x_len, y_len)
 
         time_end = time.time()
-
 
         if self.path==True:
             init_guess = []
@@ -269,5 +265,41 @@ class Map:
             # ax.plot_wireframe(X, Y, Z)
             ax.plot_surface(X, Y, Z, alpha=0.8)
 
-        
         plt.show()
+
+def main():
+    """
+    Tests using the Map class. This class will create, load, and generate
+    plots.
+
+    Guide for plotting between two coordinate points, p1 and p2:
+
+    p1, p2 = (lat, lng)
+
+    Generating --
+    Map("generate", fname(str), p1 (tuple), p2(tuple), \
+    tile_size(int), method = "fit" / "interp", path = bool)
+
+    Loading -- 
+    Map("load", fname(str), method = "fit", path = bool)
+    """
+
+    """Swarthmore College"""
+    #swarthmore_map = Map("generate", "swarthmore.txt", \
+    #(39.902763, -75.350705), (39.907570, -75.358029), 10, method = "fit")
+    # swarthmore_map = Map("load", "swarthmore.txt", method = "fit")
+    # swarthmore_map.plotGrid()
+
+    """Mount Frances"""
+    # mt_frances = Map("generate", "frances.txt", \
+    #  (63.002348, -151.194851), (62.974696, -151.148923), 15)
+    # mt_frances = Map("load", "frances.txt")
+    # mt_frances.plotGrid()
+
+    """Mount Hood"""
+    hood = Map("generate", "mt_hood.txt", \
+    (45.350626, -121.734667), (45.393944, -121.665809), tiles=15)
+    # hood = Map("load", "mt_hood.txt", method="fit", path=True)
+    hood.plotGrid()
+
+main()
