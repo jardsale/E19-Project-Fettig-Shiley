@@ -28,7 +28,7 @@ URL = "https://maps.googleapis.com/maps/api/elevation/json?locations="
 
 class Map:
 
-    def __init__(self, mode, fname, p1 = None, p2 = None, start = None, end = None, tiles = 10, method="fit", path=False):
+    def __init__(self, mode, fname, p1 = None, p2 = None, start = (0,0), end = (10,6), tiles = 10, method="fit", path=False):
         self.mode = mode
         self.fname = fname
         self.p1 = p1
@@ -144,6 +144,7 @@ class Map:
             # apply the function with parameters found from curve fit to mesh grid
             Z = func20((X, Y), *popt)
 
+
             """ Getting Absolute / Percent Error"""
             perc_err_accum = abs_err_accum = 0
 
@@ -177,6 +178,12 @@ class Map:
 
             return X, Y, Z
         
+        def function(x, y):
+            if len(self.coeffs)>0:
+                return func20((x, y), *self.coeffs)
+
+            else:
+                return self.f(x, y)
 
         def dist(x1, y1, x2, y2):
             return np.sqrt((x1-x2)**2+(y1-y2)**2)
@@ -186,12 +193,13 @@ class Map:
             ystart = self.start[1]
             xend = self.end[0]
             yend = self.end[1]
-            cost = abs((self.f(x1, y1)-self.f(xstart, ystart))/dist(xstart,ystart,x1,y1))
-            cost += abs((self.f(x2, y2)-self.f(x1, y1))/dist(x1,y1,x2,y2))
-            cost += abs((self.f(x3, y3)-self.f(x2, y2))/dist(x2,y2,x3,y3))
-            cost += abs((self.f(x4, y4)-self.f(x3, y3))/dist(x3,y3,x4,y4))
-            cost += abs((self.f(xend, yend)-self.f(x4, y4))/dist(x4,y4,xend,yend))
-            return cost
+            slopes = []
+            slopes.append((function(x1, y1)-function(xstart, ystart))/max(dist(xstart,ystart,x1,y1), 0.001))
+            slopes.append((function(x2, y2)-function(x1, y1))/(max(dist(x1,y1,x2,y2), 0.0001)))
+            slopes.append((function(x3, y3)-function(x2, y2))/(max(dist(x2,y2,x3,y3), 0.001)))
+            slopes.append((function(x4, y4)-function(x3, y3))/(max(dist(x3,y3,x4,y4), 0.001)))
+            slopes.append((function(xend, yend)-function(x4, y4))/(max(dist(x4,y4,xend,yend), 0.001)))
+            return max(slopes)
         
         def length_constraint(x1, y1, x2, y2, x3, y3, x4, y4):
             xstart = self.start[0]
@@ -205,9 +213,12 @@ class Map:
             cost += dist(x3, y3, x4, y4)
             cost += dist(x4, y4, xend, yend)
 
-        def path_cost(x1, y1, x2, y2, x3, y3, x4, y4):
-            lambda1 = 1
-            lambda2 = 1
+            return cost
+
+        def path_cost(pts):
+            x1, y1, x2, y2, x3, y3, x4, y4 = pts
+            lambda1 = 20
+            lambda2 = 20
 
             cost = lambda1 * steepness_constraint(x1, y1, x2, y2, x3, y3, x4, y4)**2
             cost += lambda2 * length_constraint(x1, y1, x2, y2, x3, y3, x4, y4)**2
@@ -242,7 +253,15 @@ class Map:
 
 
         if self.path==True:
-            minimize()
+            init_guess = []
+            for i in range(1,5):
+                init_guess += [self.start[0]+(self.end[0]-self.start[0])/5*i, self.start[1]+(self.end[1]-self.start[1])/5*i]
+        
+            path_pts = minimize(path_cost, x0=[1, 1, 2, 2, 3, 3, 3.5, 3.5], bounds=[(0, x_len-1), (0, y_len-1)]*4).x
+            x = [self.start[0], path_pts[0], path_pts[2], path_pts[4], path_pts[6], self.end[0]]
+            y = [self.start[1], path_pts[1], path_pts[3], path_pts[5], path_pts[7], self.end[1]]
+            ax.plot(x,y,[function(x[i], y[i]) for i in range(6)])
+
         # post-processing and plot
         print("Processing Time: %.6f seconds" % (time_end-time_start))
         if(self.method == "fit"):
@@ -250,5 +269,6 @@ class Map:
         else:
             # ax.plot_wireframe(X, Y, Z)
             ax.plot_surface(X, Y, Z, alpha=0.8)
+
         
         plt.show()
